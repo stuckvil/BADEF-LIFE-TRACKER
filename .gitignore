@@ -1,0 +1,65 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.aws/
+
+# Application databases
+*.db
+*.sqlite3
+
+# Local backups
+*.backup
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+
+# Logs and operating system files
+*.log
+.DS_Store# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.aws/
+
+# Application databases
+*.db
+*.sqlite3
+
+# Local backups
+*.backup
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+
+# Logs and operating system files
+*.log
+.DS_Store
