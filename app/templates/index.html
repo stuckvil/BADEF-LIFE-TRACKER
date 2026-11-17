@@ -1,0 +1,114 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BADEF Life Tracker</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 50px auto;
+            background: #f4f4f4;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        form {
+            margin-bottom: 20px;
+        }
+
+        input, select, button {
+            padding: 10px;
+            margin: 4px;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        li {
+            margin: 15px 0;
+        }
+
+        .completed {
+            text-decoration: line-through;
+            color: green;
+        }
+
+        .priority {
+            font-weight: bold;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>BADEF Life Tracker</h1>
+    <p>Track your daily progress!</p>
+
+    <!-- Form for creating a task -->
+    <form method="POST">
+
+        <input
+            type="text"
+            name="task"
+            placeholder="Enter a task..."
+            required
+        >
+
+        <select name="priority">
+            <option value="Low">Low Priority</option>
+            <option value="Medium" selected>Medium Priority</option>
+            <option value="High">High Priority</option>
+        </select>
+
+        <button type="submit">Add Task</button>
+
+    </form>
+
+    <h2>My Tasks</h2>
+
+    <ul>
+        {% for task in tasks %}
+
+        <li>
+
+            <span class="{{ 'completed' if task.completed else '' }}">
+                {{ task.name }}
+            </span>
+
+            <span class="priority">
+                Priority: {{ task.priority }}
+            </span>
+
+            <a href="{{ url_for('complete', task_id=task.id) }}">
+                {% if task.completed %}Undo{% else %}Complete{% endif %}
+            </a>
+
+            <!-- Form for deleting a task -->
+            <form
+                method="POST"
+                action="{{ url_for('delete', task_id=task.id) }}"
+                style="display: inline;"
+            >
+                <button type="submit">Delete</button>
+            </form>
+
+        </li>
+
+        {% else %}
+
+        <li>No tasks yet. Add your first task!</li>
+
+        {% endfor %}
+    </ul>
+
+</body>
+</html>
+
+ 
