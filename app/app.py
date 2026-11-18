@@ -1,7 +1,7 @@
-
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import sqlite3
 import os
+from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
@@ -12,7 +12,16 @@ app.secret_key = os.environ.get(
 )
 # Always use the database inside the app folder
 DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tasks.db")
+def login_required(view):
+    @wraps(view)
+    def wrapped_view(**kwargs):
+        if "user_id" not in session:
+            flash("Please log in to access this page.")
+            return redirect(url_for("login"))
 
+        return view(**kwargs)
+
+    return wrapped_view
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
@@ -83,6 +92,7 @@ def register():
             )
             conn.commit()
         except sqlite3.IntegrityError:
+
             flash("An account with that email already exists.")
             return redirect(url_for("register"))
         finally:
@@ -92,6 +102,13 @@ def register():
         return redirect(url_for("login"))
 
     return render_template("register.html")
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    flash("You have been logged out.")
+    return redirect(url_for("login"))
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -117,6 +134,7 @@ def login():
 
     return render_template("login.html")
 @app.route("/", methods=["GET", "POST"])
+@login_required
 def home():
     if request.method == "POST":
         task = request.form.get("task", "").strip()
@@ -136,10 +154,10 @@ def home():
             conn = get_db_connection()
             conn.execute(
                 """
-                INSERT INTO tasks (name, priority, due_date)
-                VALUES (?, ?, ?)
+                INSERT INTO tasks (name, priority, due_date, user_id)
+                VALUES (?, ?, ?, ?)
                 """,
-                (task, priority, due_date)
+                (task, priority, due_date, session["user_id"])
             )
             conn.commit()
             conn.close()
@@ -148,7 +166,8 @@ def home():
 
     conn = get_db_connection()
     tasks = conn.execute(
-        "SELECT * FROM tasks ORDER BY id"
+        "SELECT * FROM tasks WHERE user_id = ? ORDER BY id",
+        (session["user_id"],)
     ).fetchall()
     conn.close()
 
@@ -156,14 +175,15 @@ def home():
 
 
 @app.route("/complete/<int:task_id>")
+@login_required
 def complete(task_id):
     conn = get_db_connection()
 
     conn.execute("""
         UPDATE tasks
         SET completed = NOT completed
-        WHERE id = ?
-    """, (task_id,))
+        WHERE id = ? AND user_id = ?
+    """, (task_id, session["user_id"]))
 
     conn.commit()
     conn.close()
@@ -172,12 +192,13 @@ def complete(task_id):
 
 
 @app.route("/delete/<int:task_id>", methods=["POST"])
+@login_required
 def delete(task_id):
     conn = get_db_connection()
 
     conn.execute(
-        "DELETE FROM tasks WHERE id = ?",
-        (task_id,)
+        "DELETE FROM tasks WHERE id = ? AND user_id = ?",
+        (task_id, session["user_id"])
     )
 
     conn.commit()

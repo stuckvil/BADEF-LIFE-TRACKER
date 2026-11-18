@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -13,45 +12,22 @@
             padding: 20px;
         }
 
-        h1 {
-            color: #333;
-        }
-
-        form {
-            margin-bottom: 20px;
-        }
-
-        input, select, button {
-            padding: 10px;
-            margin: 4px;
-        }
-
-        button {
-            cursor: pointer;
-        }
-
-        li {
-            margin: 15px 0;
-        }
-
-        .completed {
-            text-decoration: line-through;
-            color: green;
-        }
-
-        .priority {
-            font-weight: bold;
-            margin-left: 10px;
-        }
-
-        .due-date {
-            margin-left: 10px;
-            color: #555;
-        }
+        h1 { color: #333; }
+        form { margin-bottom: 20px; }
+        input, select, button { padding: 10px; margin: 4px; }
+        button { cursor: pointer; }
+        li { margin: 15px 0; }
+        .completed { text-decoration: line-through; color: green; }
+        .priority { font-weight: bold; margin-left: 10px; }
+        .due-date { margin-left: 10px; color: #555; }
     </style>
-</head>
 
+</head>
 <body>
+
+    <form method="POST" action="{{ url_for('logout') }}">
+        <button type="submit">Logout</button>
+    </form>
 
     <h1>BADEF Life Tracker</h1>
     <p>Track your daily progress!</p>
