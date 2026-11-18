@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BADEF - Employee Login</title>
+</head>
+<body>
+
+    <h1>BADEF Life Tracker</h1>
+    <h2>Employee Login</h2>
+
+    {% with messages = get_flashed_messages() %}
+        {% for message in messages %}
+            <p>{{ message }}</p>
+        {% endfor %}
+    {% endwith %}
+
+    <form method="POST">
+
+        <label>Email:</label><br>
+        <input type="email" name="email" required><br><br>
+
+        <label>Password:</label><br>
+        <input type="password" name="password" required><br><br>
+
+        <button type="submit">Login</button>
+
+    </form>
+
+    <p>New employee?
+        <a href="{{ url_for('register') }}">Create an account</a>
+    </p>
+
+</body>
+</html>

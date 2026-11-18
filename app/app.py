@@ -1,11 +1,15 @@
 
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 import sqlite3
 import os
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
 app = Flask(__name__)
-
+app.secret_key = os.environ.get(
+    "FLASK_SECRET_KEY",
+    "badef-development-key-change-before-production"
+)
 # Always use the database inside the app folder
 DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tasks.db")
 
@@ -36,10 +40,82 @@ def init_db():
     if "due_date" not in column_names:
         conn.execute("ALTER TABLE tasks ADD COLUMN due_date TEXT")
 
+    # Create users table
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'employee'
+        )
+    """)
+
+
     conn.commit()
     conn.close()
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
 
+        if not name or not email or not password:
+            flash("All fields are required.")
+            return redirect(url_for("register"))
 
+        if len(password) < 8:
+            flash("Password must be at least 8 characters.")
+            return redirect(url_for("register"))
+
+        password_hash = generate_password_hash(password)
+
+        conn = get_db_connection()
+
+        try:
+            conn.execute(
+                """
+                INSERT INTO users (name, email, password_hash)
+                VALUES (?, ?, ?)
+                """,
+                (name, email, password_hash)
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            flash("An account with that email already exists.")
+            return redirect(url_for("register"))
+        finally:
+            conn.close()
+
+        flash("Registration successful. Please log in.")
+        return redirect(url_for("login"))
+
+    return render_template("register.html")
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+
+        conn = get_db_connection()
+        user = conn.execute(
+            "SELECT * FROM users WHERE email = ?",
+            (email,)
+        ).fetchone()
+        conn.close()
+
+        if user and check_password_hash(user["password_hash"], password):
+            session.clear()
+            session["user_id"] = user["id"]
+
+            flash("Welcome back, " + user["name"] + "!")
+            return redirect(url_for("home"))
+
+        flash("Incorrect email or password.")
+        return redirect(url_for("login"))
+
+    return render_template("login.html")
 @app.route("/", methods=["GET", "POST"])
 def home():
     if request.method == "POST":
