@@ -25,7 +25,13 @@ def login_required(view):
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
+
+    # Enable foreign-key enforcement for this connection
+    conn.execute("PRAGMA foreign_keys = ON")
+
+    # Allow database rows to be accessed by column name
     conn.row_factory = sqlite3.Row
+
     return conn
 
 
@@ -78,6 +84,7 @@ def register():
             flash("Password must be at least 8 characters.")
             return redirect(url_for("register"))
 
+
         password_hash = generate_password_hash(password)
 
         conn = get_db_connection()
@@ -116,26 +123,69 @@ def login():
         password = request.form.get("password", "")
 
         conn = get_db_connection()
+
         user = conn.execute(
             "SELECT * FROM users WHERE email = ?",
             (email,)
         ).fetchone()
-        conn.close()
 
         if user and check_password_hash(user["password_hash"], password):
+
+            # Find this user's personal workspace.
+            personal_workspace = conn.execute("""
+                SELECT w.id
+                FROM workspaces w
+                JOIN workspace_members wm
+                    ON wm.workspace_id = w.id
+                WHERE wm.user_id = ?
+                  AND w.workspace_type = 'personal'
+            """, (user["id"],)).fetchone()
+
+            conn.close()
+
+            if not personal_workspace:
+                flash("Your personal workspace could not be found.")
+                return redirect(url_for("login"))
+
+            # Start a fresh session.
             session.clear()
+
+            # Store the authenticated user and active workspace.
             session["user_id"] = user["id"]
+            session["workspace_id"] = personal_workspace["id"]
 
             flash("Welcome back, " + user["name"] + "!")
             return redirect(url_for("home"))
+
+        conn.close()
 
         flash("Incorrect email or password.")
         return redirect(url_for("login"))
 
     return render_template("login.html")
+
 @app.route("/", methods=["GET", "POST"])
 @login_required
 def home():
+    user_id = session["user_id"]
+    workspace_id = session.get("workspace_id")
+
+    conn = get_db_connection()
+
+    # Confirm that this user belongs to the active workspace.
+    membership = conn.execute("""
+        SELECT id
+        FROM workspace_members
+        WHERE user_id = ? AND workspace_id = ?
+    """, (user_id, workspace_id)).fetchone()
+
+    if not membership:
+        conn.close()
+        session.clear()
+        flash("Please log in and select an authorized workspace.")
+        return redirect(url_for("login"))
+
+    # Add a task when the form is submitted.
     if request.method == "POST":
         task = request.form.get("task", "").strip()
         priority = request.form.get("priority", "Medium")
@@ -149,57 +199,90 @@ def home():
                 try:
                     datetime.strptime(due_date, "%Y-%m-%d")
                 except ValueError:
+                    conn.close()
                     return "Invalid due date", 400
 
-            conn = get_db_connection()
-            conn.execute(
-                """
-                INSERT INTO tasks (name, priority, due_date, user_id)
-                VALUES (?, ?, ?, ?)
-                """,
-                (task, priority, due_date, session["user_id"])
-            )
-            conn.commit()
-            conn.close()
+            conn.execute("""
+                INSERT INTO tasks
+                    (name, priority, due_date, user_id, workspace_id)
+                VALUES (?, ?, ?, ?, ?)
+            """, (task, priority, due_date, user_id, workspace_id))
 
+            conn.commit()
+
+        conn.close()
         return redirect(url_for("home"))
 
-    conn = get_db_connection()
-    tasks = conn.execute(
-        "SELECT * FROM tasks WHERE user_id = ? ORDER BY id",
-        (session["user_id"],)
-    ).fetchall()
+    # Show only tasks belonging to this user and workspace.
+    tasks = conn.execute("""
+        SELECT *
+        FROM tasks
+        WHERE user_id = ? AND workspace_id = ?
+        ORDER BY id
+    """, (user_id, workspace_id)).fetchall()
+
     conn.close()
 
     return render_template("index.html", tasks=tasks)
 
-
-@app.route("/complete/<int:task_id>")
+@app.route("/complete/<int:task_id>", methods=["POST"])
 @login_required
 def complete(task_id):
+    user_id = session["user_id"]
+    workspace_id = session.get("workspace_id")
+
     conn = get_db_connection()
 
+    # Verify that the user belongs to the active workspace.
+    membership = conn.execute("""
+        SELECT id
+        FROM workspace_members
+        WHERE user_id = ? AND workspace_id = ?
+    """, (user_id, workspace_id)).fetchone()
+
+    if not membership:
+        conn.close()
+        return "Unauthorized workspace", 403
+
+    # Update only a task owned by this user in this workspace.
     conn.execute("""
         UPDATE tasks
         SET completed = NOT completed
-        WHERE id = ? AND user_id = ?
-    """, (task_id, session["user_id"]))
+        WHERE id = ?
+          AND user_id = ?
+          AND workspace_id = ?
+    """, (task_id, user_id, workspace_id))
 
     conn.commit()
     conn.close()
 
     return redirect(url_for("home"))
-
-
 @app.route("/delete/<int:task_id>", methods=["POST"])
 @login_required
 def delete(task_id):
+    user_id = session["user_id"]
+    workspace_id = session.get("workspace_id")
+
     conn = get_db_connection()
 
-    conn.execute(
-        "DELETE FROM tasks WHERE id = ? AND user_id = ?",
-        (task_id, session["user_id"])
-    )
+    # Verify workspace membership.
+    membership = conn.execute("""
+        SELECT id
+        FROM workspace_members
+        WHERE user_id = ? AND workspace_id = ?
+    """, (user_id, workspace_id)).fetchone()
+
+    if not membership:
+        conn.close()
+        return "Unauthorized workspace", 403
+
+    # Delete only this user's task in the active workspace.
+    conn.execute("""
+        DELETE FROM tasks
+        WHERE id = ?
+          AND user_id = ?
+          AND workspace_id = ?
+    """, (task_id, user_id, workspace_id))
 
     conn.commit()
     conn.close()
@@ -210,4 +293,5 @@ def delete(task_id):
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000)
+
 

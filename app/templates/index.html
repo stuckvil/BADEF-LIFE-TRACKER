@@ -61,47 +61,41 @@
     </form>
 
     <h2>My Tasks</h2>
+<ul>
+    {% for task in tasks %}
+    <li>
+        <span class="{{ 'completed' if task.completed else '' }}">
+            {{ task.name }}
+        </span>
 
-    <ul>
-        {% for task in tasks %}
+        <span class="priority">
+            Priority: {{ task.priority }}
+        </span>
 
-        <li>
-
-            <span class="{{ 'completed' if task.completed else '' }}">
-                {{ task.name }}
+        {% if task.due_date %}
+            <span class="due-date">
+                Due: {{ task.due_date }}
             </span>
+        {% endif %}
 
-            <span class="priority">
-                Priority: {{ task.priority }}
-            </span>
-
-            {% if task.due_date %}
-                <span class="due-date">
-                    Due: {{ task.due_date }}
-                </span>
-            {% endif %}
-
-            <a href="{{ url_for('complete', task_id=task.id) }}">
+        <form method="POST"
+              action="{{ url_for('complete', task_id=task.id) }}"
+              style="display: inline;">
+            <button type="submit">
                 {% if task.completed %}Undo{% else %}Complete{% endif %}
-            </a>
+            </button>
+        </form>
 
-            <!-- Form for deleting a task -->
-            <form
-                method="POST"
-                action="{{ url_for('delete', task_id=task.id) }}"
-                style="display: inline;"
-            >
-                <button type="submit">Delete</button>
-            </form>
-
-        </li>
-
-        {% else %}
-
-        <li>No tasks yet. Add your first task!</li>
-
-        {% endfor %}
-    </ul>
+        <form method="POST"
+              action="{{ url_for('delete', task_id=task.id) }}"
+              style="display: inline;">
+            <button type="submit">Delete</button>
+        </form>
+    </li>
+    {% else %}
+    <li>No tasks yet. Add your first task!</li>
+    {% endfor %}
+</ul>
 
 </body>
 </html>
