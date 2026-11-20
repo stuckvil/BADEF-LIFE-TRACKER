@@ -69,6 +69,7 @@ def init_db():
 
     conn.commit()
     conn.close()
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
@@ -84,24 +85,54 @@ def register():
             flash("Password must be at least 8 characters.")
             return redirect(url_for("register"))
 
-
         password_hash = generate_password_hash(password)
 
         conn = get_db_connection()
 
         try:
-            conn.execute(
+            # 1. Create the user account.
+            user_cursor = conn.execute(
                 """
                 INSERT INTO users (name, email, password_hash)
                 VALUES (?, ?, ?)
                 """,
                 (name, email, password_hash)
             )
-            conn.commit()
-        except sqlite3.IntegrityError:
 
+            # Get the ID of the new user.
+            user_id = user_cursor.lastrowid
+
+            # 2. Create the user's personal workspace.
+            workspace_cursor = conn.execute(
+                """
+                INSERT INTO workspaces (name, workspace_type)
+                VALUES (?, ?)
+                """,
+                (f"{name}'s Personal Workspace", "personal")
+            )
+
+            # Get the ID of the new workspace.
+            workspace_id = workspace_cursor.lastrowid
+
+            # 3. Make the user the owner of that workspace.
+            conn.execute(
+                """
+                INSERT INTO workspace_members
+                    (user_id, workspace_id, role)
+                VALUES (?, ?, ?)
+                """,
+                (user_id, workspace_id, "owner")
+            )
+
+            # Save all three operations together.
+            conn.commit()
+
+        except sqlite3.IntegrityError:
+            # Undo any incomplete database changes.
+            conn.rollback()
             flash("An account with that email already exists.")
             return redirect(url_for("register"))
+
         finally:
             conn.close()
 
@@ -109,7 +140,81 @@ def register():
         return redirect(url_for("login"))
 
     return render_template("register.html")
+   
+@app.route("/companies/register", methods=["GET", "POST"])
+@login_required
+def company_register():
+    if request.method == "POST":
+        company_name = request.form.get("company_name", "").strip()
+        user_id = session["user_id"]
 
+        if not company_name:
+            flash("Company name is required.")
+            return redirect(url_for("company_register"))
+
+        conn = get_db_connection()
+
+        try:
+            company_cursor = conn.execute(
+                "INSERT INTO companies (name) VALUES (?)",
+                (company_name,)
+            )
+            company_id = company_cursor.lastrowid
+
+            workspace_cursor = conn.execute(
+                """
+                INSERT INTO workspaces (name, workspace_type, company_id)
+                VALUES (?, ?, ?)
+                """,
+                (company_name + " Workspace", "company", company_id)
+            )
+            workspace_id = workspace_cursor.lastrowid
+
+            conn.execute(
+                """
+                INSERT INTO workspace_members (user_id, workspace_id, role)
+                VALUES (?, ?, ?)
+                """,
+                (user_id, workspace_id, "owner")
+            )
+
+            conn.commit()
+
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            flash("Company registration failed. Please try again.")
+            return redirect(url_for("company_register"))
+
+        finally:
+            conn.close()
+
+        flash("Company registered successfully!")
+        return redirect(url_for("home"))
+
+    return render_template("company_register.html")
+@app.route("/switch-workspace/<int:workspace_id>", methods=["POST"])
+@login_required
+def switch_workspace(workspace_id):
+    user_id = session["user_id"]
+
+    conn = get_db_connection()
+
+    membership = conn.execute("""
+        SELECT workspace_id
+        FROM workspace_members
+        WHERE user_id = ? AND workspace_id = ?
+    """, (user_id, workspace_id)).fetchone()
+
+    conn.close()
+
+    if not membership:
+        flash("You are not authorized to access that workspace.")
+        return redirect(url_for("home"))
+
+    session["workspace_id"] = workspace_id
+
+    flash("Workspace switched successfully.")
+    return redirect(url_for("home"))
 @app.route("/logout", methods=["POST"])
 def logout():
     session.clear()
@@ -214,6 +319,7 @@ def home():
         return redirect(url_for("home"))
 
     # Show only tasks belonging to this user and workspace.
+        # Show only tasks belonging to this user and workspace.
     tasks = conn.execute("""
         SELECT *
         FROM tasks
@@ -221,9 +327,49 @@ def home():
         ORDER BY id
     """, (user_id, workspace_id)).fetchall()
 
+    # Get all workspaces this user is authorized to access.
+    workspaces = conn.execute("""
+        SELECT w.id, w.name, w.workspace_type, wm.role
+        FROM workspaces w
+        JOIN workspace_members wm ON wm.workspace_id = w.id
+        WHERE wm.user_id = ?
+        ORDER BY w.workspace_type, w.name
+    """, (user_id,)).fetchall()
+
     conn.close()
 
-    return render_template("index.html", tasks=tasks)
+    # Calculate dashboard statistics
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    total_tasks = len(tasks)
+
+    completed_tasks = sum(
+        1 for task in tasks if task["completed"]
+    )
+
+    pending_tasks = total_tasks - completed_tasks
+
+    overdue_tasks = sum(
+        1 for task in tasks
+        if not task["completed"]
+        and task["due_date"]
+        and task["due_date"] < today
+    )
+
+    completion_rate = (
+        round((completed_tasks / total_tasks) * 100)
+        if total_tasks > 0 else 0
+    )
+
+    return render_template(
+        "index.html",
+        tasks=tasks,
+        workspaces=workspaces,
+        total_tasks=total_tasks,
+        completed_tasks=completed_tasks,
+        pending_tasks=pending_tasks,
+        today=datetime.now().strftime("%Y-%m-%d")
+    )
 
 @app.route("/complete/<int:task_id>", methods=["POST"])
 @login_required

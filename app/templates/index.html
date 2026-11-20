@@ -1,102 +1,236 @@
+
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BADEF Life Tracker</title>
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 700px;
-            margin: 50px auto;
-            background: #f4f4f4;
-            padding: 20px;
-        }
-
-        h1 { color: #333; }
-        form { margin-bottom: 20px; }
-        input, select, button { padding: 10px; margin: 4px; }
-        button { cursor: pointer; }
-        li { margin: 15px 0; }
-        .completed { text-decoration: line-through; color: green; }
-        .priority { font-weight: bold; margin-left: 10px; }
-        .due-date { margin-left: 10px; color: #555; }
-    </style>
-
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
 
-    <form method="POST" action="{{ url_for('logout') }}">
-        <button type="submit">Logout</button>
-    </form>
+<div class="app-layout">
 
-    <h1>BADEF Life Tracker</h1>
-    <p>Track your daily progress!</p>
+    <!-- Sidebar navigation -->
+    <aside class="sidebar">
+        <div class="brand">BADEF</div>
 
-    <!-- Form for creating a task -->
-    <form method="POST">
+        <nav>
+    <a href="{{ url_for('home') }}" class="active">Dashboard</a>
+    <a href="{{ url_for('home') }}">My Tasks</a>
+</nav>
 
-        <input
-            type="text"
-            name="task"
-            placeholder="Enter a task..."
-            required
-        >
+<div class="workspace-selector">
+    <h3>My Workspaces</h3>
 
-        <select name="priority">
-            <option value="Low">Low Priority</option>
-            <option value="Medium" selected>Medium Priority</option>
-            <option value="High">High Priority</option>
-        </select>
-
-        <label for="due_date">Due date:</label>
-
-        <input
-            type="date"
-            id="due_date"
-            name="due_date"
-        >
-
-        <button type="submit">Add Task</button>
-
-    </form>
-
-    <h2>My Tasks</h2>
-<ul>
-    {% for task in tasks %}
-    <li>
-        <span class="{{ 'completed' if task.completed else '' }}">
-            {{ task.name }}
-        </span>
-
-        <span class="priority">
-            Priority: {{ task.priority }}
-        </span>
-
-        {% if task.due_date %}
-            <span class="due-date">
-                Due: {{ task.due_date }}
-            </span>
-        {% endif %}
-
+    {% for workspace in workspaces %}
         <form method="POST"
-              action="{{ url_for('complete', task_id=task.id) }}"
-              style="display: inline;">
+              action="{{ url_for('switch_workspace', workspace_id=workspace.id) }}">
+
             <button type="submit">
-                {% if task.completed %}Undo{% else %}Complete{% endif %}
+                {{ workspace.name }}
+
+                {% if workspace.id == session.get('workspace_id') %}
+                    ✓ Current
+                {% endif %}
             </button>
         </form>
+    {% endfor %}
+
+    <a href="{{ url_for('company_register') }}">
+        + Register Company
+    </a>
+</div>
 
         <form method="POST"
-              action="{{ url_for('delete', task_id=task.id) }}"
-              style="display: inline;">
-            <button type="submit">Delete</button>
+              action="{{ url_for('logout') }}"
+              class="logout-form">
+            <button type="submit">Logout</button>
         </form>
-    </li>
-    {% else %}
-    <li>No tasks yet. Add your first task!</li>
-    {% endfor %}
-</ul>
+    </aside>
+
+    <!-- Main dashboard -->
+    <main class="main-content">
+
+        <div class="topbar">
+            <div>
+                <h2>My Dashboard</h2>
+                <p>Welcome to your BADEF workspace.</p>
+            </div>
+        </div>
+
+        <section class="welcome">
+            <h1>Welcome to BADEF Life Tracker!</h1>
+            <p>Organize your work, manage your tasks and track your progress.</p>
+        </section>
+          <!-- Dashboard Statistics -->
+      
+<section class="stats-c
+ontainer">
+
+    <div class="card stat-card" onclick="filterTasks('all')">
+        <h3>Total Tasks</h3>
+        <h1>{{ total_tasks }}</h1>
+    </div>
+
+    <div class="card stat-card" onclick="filterTasks('completed')">
+        <h3>Completed Tasks</h3>
+        <h1>{{ completed_tasks }}</h1>
+    </div>
+
+    <div class="card stat-card" onclick="filterTasks('pending')">
+        <h3>Pending Tasks</h3>
+        <h1>{{ pending_tasks }}</h1>
+    </div>
+
+    <div class="card stat-card" onclick="filterTasks('overdue')">
+        <h3>Overdue Tasks</h3>
+        <h1>{{ overdue_tasks }}</h1>
+    </div>
+
+    <div class="card stat-card">
+        <h3>Completion Rate</h3>
+        <h1>{{ completion_rate }}%</h1>
+    </div>
+
+</section>
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages() %}
+            {% for message in messages %}
+                <div class="flash-message">{{ message }}</div>
+            {% endfor %}
+        {% endwith %}
+
+        <!-- Create task -->
+        <section class="card">
+            <h2>Create a New Task</h2>
+
+            <form method="POST" class="task-form">
+
+                <input
+                    type="text"
+                    name="task"
+                    placeholder="What needs to be done?"
+                    required
+                >
+
+                <select name="priority">
+                    <option value="Low">Low Priority</option>
+                    <option value="Medium" selected>Medium Priority</option>
+                    <option value="High">High Priority</option>
+                </select>
+
+                <input
+                    type="date"
+                    name="due_date"
+                    aria-label="Due date"
+                >
+
+                <button type="submit">+ Add Task</button>
+
+            </form>
+        </section>
+
+        
+<!-- Task list -->
+<section class="card">
+    <h2>My Tasks</h2>
+
+    <ul class="task-list">
+
+        {% for task in tasks %}
+        <li class="task-item"
+    data-completed="{{ 'true' if task.completed else 'false' }}"
+    data-overdue="{{ 'true' if not task.completed and task.due_date and task.due_date < today else 'false' }}">
+
+            <span class="{{ 'completed' if task.completed else '' }}">
+                {{ task.name }}
+            </span>
+
+            <span class="priority-badge priority-{{ task.priority|lower }}">
+                {{ task.priority }}
+            </span>
+
+            {% if task.completed %}
+                <span class="status-badge completed-badge">
+                    COMPLETED
+                </span>
+            {% elif task.due_date %}
+                {% if task.due_date < today %}
+                    <span class="status-badge overdue-badge">
+                        OVERDUE: {{ task.due_date }}
+                    </span>
+                {% else %}
+                    <span class="due-date">
+                        DUE: {{ task.due_date }}
+                    </span>
+                {% endif %}
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('complete', task_id=task.id) }}">
+                <button type="submit">
+                    {% if task.completed %}
+                        Mark Pending
+                    {% else %}
+                        Complete
+                    {% endif %}
+                </button>
+            </form>
+
+            <form method="POST" action="{{ url_for('delete', task_id=task.id) }}">
+                <button type="submit">Delete</button>
+            </form>
+
+        </li>
+        {% endfor %}
+
+    </ul>
+</section>
+
+
+    </main>
+
+</div>
+<script>
+
+function filterTasks(status) {
+    const tasks = document.querySelectorAll('.task-item');
+    const cards = document.querySelectorAll('.stat-card');
+
+    tasks.forEach(task => {
+        const completed = task.dataset.completed === 'true';
+        const overdue = task.dataset.overdue === 'true';
+
+        if (status === 'all') {
+            task.style.display = '';
+        } else if (status === 'completed') {
+            task.style.display = completed ? '' : 'none';
+        } else if (status === 'pending') {
+            task.style.display = !completed ? '' : 'none';
+        } else if (status === 'overdue') {
+            task.style.display = overdue ? '' : 'none';
+        }
+    });
+
+    cards.forEach(card => card.classList.remove('active'));
+
+    const index = {
+        all: 0,
+        completed: 1,
+        pending: 2,
+        overdue: 3
+    }[status];
+
+    if (cards[index]) {
+        cards[index].classList.add('active');
+    }
+}
+
+</script>
 
 </body>
 </html>
-

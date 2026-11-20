@@ -1,0 +1,33 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BADEF - Company Registration</title>
+</head>
+<body>
+
+    <h1>BADEF Life Tracker</h1>
+    <h2>Register Your Company</h2>
+
+    {% with messages = get_flashed_messages() %}
+        {% for message in messages %}
+            <p>{{ message }}</p>
+        {% endfor %}
+    {% endwith %}
+
+    <form method="POST">
+
+        <label>Company Name:</label><br>
+        <input type="text" name="company_name" required><br><br>
+
+        <button type="submit">Create Company</button>
+
+    </form>
+
+    <p>
+        <a href="{{ url_for('home') }}">Back to Dashboard</a>
+    </p>
+
+</body>
+</html>
+
