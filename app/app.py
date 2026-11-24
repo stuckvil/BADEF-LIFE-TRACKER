@@ -155,30 +155,56 @@ def company_register():
         conn = get_db_connection()
 
         try:
+            # Check whether this user already owns a workspace
+            # with this company name.
+            existing_workspace = conn.execute("""
+                SELECT w.id
+                FROM workspaces w
+                JOIN companies c ON c.id = w.company_id
+                JOIN workspace_members wm
+                    ON wm.workspace_id = w.id
+                WHERE wm.user_id = ?
+                  AND wm.role = 'owner'
+                  AND w.workspace_type = 'company'
+                  AND LOWER(TRIM(c.name)) = LOWER(TRIM(?))
+                ORDER BY w.id ASC
+                LIMIT 1
+            """, (user_id, company_name)).fetchone()
+
+            if existing_workspace:
+                session["workspace_id"] = existing_workspace["id"]
+                flash("Your existing company workspace has been opened.")
+                return redirect(url_for("home"))
+
+            # Create a new company only if this user
+            # does not already own one with this name.
             company_cursor = conn.execute(
                 "INSERT INTO companies (name) VALUES (?)",
                 (company_name,)
             )
             company_id = company_cursor.lastrowid
 
-            workspace_cursor = conn.execute(
-                """
-                INSERT INTO workspaces (name, workspace_type, company_id)
+            workspace_cursor = conn.execute("""
+                INSERT INTO workspaces
+                    (name, workspace_type, company_id)
                 VALUES (?, ?, ?)
-                """,
-                (company_name + " Workspace", "company", company_id)
-            )
+            """, (
+                company_name + " Workspace",
+                "company",
+                company_id
+            ))
+
             workspace_id = workspace_cursor.lastrowid
 
-            conn.execute(
-                """
-                INSERT INTO workspace_members (user_id, workspace_id, role)
+            conn.execute("""
+                INSERT INTO workspace_members
+                    (user_id, workspace_id, role)
                 VALUES (?, ?, ?)
-                """,
-                (user_id, workspace_id, "owner")
-            )
+            """, (user_id, workspace_id, "owner"))
 
             conn.commit()
+
+            session["workspace_id"] = workspace_id
 
         except sqlite3.IntegrityError:
             conn.rollback()
@@ -434,6 +460,76 @@ def delete(task_id):
     conn.close()
 
     return redirect(url_for("home"))
+
+
+
+@app.route("/messages")
+@login_required
+def messages():
+    user_id = session["user_id"]
+    workspace_id = session.get("workspace_id")
+
+    conn = get_db_connection()
+
+    membership = conn.execute("""
+        SELECT w.workspace_type
+        FROM workspace_members wm
+        JOIN workspaces w ON w.id = wm.workspace_id
+        WHERE wm.user_id = ? AND wm.workspace_id = ?
+    """, (user_id, workspace_id)).fetchone()
+
+    if not membership or membership["workspace_type"] != "company":
+        conn.close()
+        return "Company workspace access required", 403
+
+    chat_messages = conn.execute("""
+        SELECT m.id, m.user_id, m.message, m.created_at, u.name
+        FROM messages m
+        JOIN users u ON u.id = m.user_id
+        WHERE m.workspace_id = ?
+        ORDER BY m.id DESC
+        LIMIT 100
+    """, (workspace_id,)).fetchall()
+
+    chat_messages = list(reversed(chat_messages))
+    conn.close()
+
+    return render_template("messages.html", messages=chat_messages, current_user_id=user_id)
+
+
+@app.route("/send-message", methods=["POST"])
+@login_required
+def send_message():
+    user_id = session["user_id"]
+    workspace_id = session.get("workspace_id")
+    message = request.form.get("message", "").strip()
+
+    if not message or len(message) > 2000:
+        flash("Message must contain 1 to 2000 characters.")
+        return redirect(url_for("messages"))
+
+    conn = get_db_connection()
+
+    membership = conn.execute("""
+        SELECT w.workspace_type
+        FROM workspace_members wm
+        JOIN workspaces w ON w.id = wm.workspace_id
+        WHERE wm.user_id = ? AND wm.workspace_id = ?
+    """, (user_id, workspace_id)).fetchone()
+
+    if not membership or membership["workspace_type"] != "company":
+        conn.close()
+        return "Unauthorized workspace", 403
+
+    conn.execute("""
+        INSERT INTO messages (workspace_id, user_id, message)
+        VALUES (?, ?, ?)
+    """, (workspace_id, user_id, message))
+
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for("messages"))
 
 
 if __name__ == "__main__":
