@@ -72,3 +72,26 @@ Authorization answers:
 What are you allowed to access?
 
 Both are necessary for a secure application.
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+import sqlite3
+import os
+from functools import wraps
+hat each one does:
+Code	Purpose
+Flask	Creates our web application.
+render_template	Displays HTML pages.
+request	Receives information submitted by users.
+redirect	Sends users to another page.
+url_for	Generates URLs for application routes.
+session	Keeps track of logged-in users.
+flash	Displays temporary notifications.
+sqlite3	Connects Python to our database.
+os	Helps Python work with files and directories.
+wraps	Preserves function information when creating decorators.
+
+Interview question
+What is Flask?
+
+A good answer:
+
+"Flask is a lightweight Python web framework that I use to build BADEF Life Tracker. It handles web requests, application routes, user sessions, and communication between the browser and the backend."

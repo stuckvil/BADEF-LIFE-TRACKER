@@ -147,11 +147,24 @@
     <div class="chat-card">
 
         <div class="chat-header">
-            <h2>Team Communication</h2>
-            <p>BADEF Team Workspace</p>
-        </div>
+    <h2>Team Communication</h2>
+    <p>BADEF Team Workspace</p>
 
-        <div class="messages" id="messages">
+    <div style="margin-top: 18px; display: flex; gap: 12px; flex-wrap: wrap;">
+        <form method="POST" action="{{ url_for('start_meeting') }}">
+            <input type="hidden" name="meeting_type" value="audio">
+            <button type="submit">📞 Start Audio Call</button>
+        </form>
+
+        <form method="POST" action="{{ url_for('start_meeting') }}">
+            <input type="hidden" name="meeting_type" value="video">
+            <button type="submit">🎥 Start Video Call</button>
+        </form>
+    </div>
+</div>          
+              
+    <div class="messages" id="messages">
+
 
             {% for message in messages %}
                 <div class="message {% if message['user_id'] == current_user_id %}own-message{% endif %}">

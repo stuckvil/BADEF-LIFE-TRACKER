@@ -1,0 +1,218 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Communication | BADEF</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f6fb;
+            color: #17233d;
+        }
+
+        .container {
+            max-width: 950px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        .chat-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: #14213d;
+            color: white;
+            padding: 22px;
+        }
+
+        .chat-header h2 {
+            margin: 0 0 5px;
+        }
+
+        .chat-header p {
+            margin: 0;
+            color: #cbd5e1;
+        }
+
+        .messages {
+            height: 450px;
+            overflow-y: auto;
+            padding: 25px;
+        }
+
+        .message {
+    background: #eef2ff;
+    padding: 14px;
+    border-radius: 12px 12px 12px 3px;
+    margin-bottom: 15px;
+    max-width: 80%;
+    margin-right: auto;
+}
+
+.message.own-message {
+    background: #2563eb;
+    color: white;
+    border-radius: 12px 12px 3px 12px;
+    margin-left: auto;
+    margin-right: 0;
+}
+
+.message.own-message .sender,
+.message.own-message .timestamp {
+    color: #dbeafe;
+}
+
+        .sender {
+            font-weight: bold;
+            color: #14213d;
+            margin-bottom: 6px;
+        }
+
+        .message-text {
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 8px;
+        }
+
+        .empty {
+            text-align: center;
+            color: #64748b;
+            padding: 100px 10px;
+        }
+
+        .chat-form {
+            display: flex;
+            gap: 10px;
+            padding: 20px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        textarea {
+            flex: 1;
+            resize: vertical;
+            min-height: 48px;
+            padding: 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .back {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #2563eb;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <a href="{{ url_for('home') }}" class="back">
+        &larr; Back to Dashboard
+    </a>
+
+    <div class="chat-card">
+
+        <div class="chat-header">
+    <h2>Team Communication</h2>
+    <p>BADEF Team Workspace</p>
+
+    <div style="margin-top: 18px; display: flex; gap: 12px; flex-wrap: wrap;">
+        <form method="POST" action="{{ url_for('start_meeting') }}">
+            <input type="hidden" name="meeting_type" value="audio">
+            <button type="submit">📞 Start Audio Call</button>
+        </form>
+
+        <form method="POST" action="{{ url_for('start_meeting') }}">
+            <input type="hidden" name="meeting_type" value="video">
+            <button type="submit">🎥 Start Video Call</button>
+        </form>
+    </div>
+</div>          
+              
+    <div class="messages" id="messages">
+
+
+            {% for message in messages %}
+                <div class="message {% if message['user_id'] == current_user_id %}own-message{% endif %}">
+
+                    <div class="sender">
+                        {{ message["name"] }}
+                    </div>
+
+                    <div class="message-text">
+                        {{ message["message"] }}
+                    </div>
+
+                    <div class="timestamp">
+                        {{ message["created_at"] }}
+                    </div>
+
+                </div>
+            {% else %}
+                <div class="empty">
+                    <h3>No messages yet</h3>
+                    <p>Start a conversation with your team!</p>
+                </div>
+            {% endfor %}
+
+        </div>
+
+        <form action="{{ url_for('send_message') }}"
+              method="POST"
+              class="chat-form">
+
+            <textarea name="message"
+                      placeholder="Write a message to your team..."
+                      maxlength="2000"
+                      required></textarea>
+
+            <button type="submit">Send</button>
+
+        </form>
+
+    </div>
+
+</div>
+
+<script>
+    const messagesBox = document.getElementById("messages");
+    messagesBox.scrollTop = messagesBox.scrollHeight;
+</script>
+
+</body>
+</html>
+

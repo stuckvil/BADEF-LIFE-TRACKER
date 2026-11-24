@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import sqlite3
 import os
+import uuid
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
@@ -530,6 +531,72 @@ def send_message():
     conn.close()
 
     return redirect(url_for("messages"))
+
+@app.route("/start-meeting", methods=["POST"])
+@login_required
+def start_meeting():
+    user_id = session["user_id"]
+    workspace_id = session.get("workspace_id")
+    meeting_type = request.form.get("meeting_type")
+
+    if meeting_type not in ("audio", "video"):
+        return "Invalid meeting type", 400
+
+    conn = get_db_connection()
+
+    membership = conn.execute("""
+        SELECT w.workspace_type
+        FROM workspace_members wm
+        JOIN workspaces w ON w.id = wm.workspace_id
+        WHERE wm.user_id = ? AND wm.workspace_id = ?
+    """, (user_id, workspace_id)).fetchone()
+
+    if not membership or membership["workspace_type"] != "company":
+        conn.close()
+        return "Company workspace access required", 403
+
+    room_id = f"BADEF-{workspace_id}-{uuid.uuid4().hex}"
+
+    conn.execute("""
+        INSERT INTO meetings (room_id, workspace_id, created_by, meeting_type)
+        VALUES (?, ?, ?, ?)
+    """, (room_id, workspace_id, user_id, meeting_type))
+
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for("meeting_room", room_id=room_id))
+
+
+@app.route("/meeting/<room_id>")
+@login_required
+def meeting_room(room_id):
+    user_id = session["user_id"]
+
+    conn = get_db_connection()
+
+    meeting = conn.execute("""
+        SELECT m.room_id, m.meeting_type, m.workspace_id
+        FROM meetings m
+        JOIN workspace_members wm
+            ON wm.workspace_id = m.workspace_id
+        JOIN workspaces w
+            ON w.id = m.workspace_id
+        WHERE m.room_id = ?
+          AND wm.user_id = ?
+          AND w.workspace_type = 'company'
+    """, (room_id, user_id)).fetchone()
+
+    conn.close()
+
+    if not meeting:
+        return "Meeting not found or you are not authorized to join.", 403
+
+    return render_template(
+        "meeting.html",
+        room_id=meeting["room_id"],
+        meeting_type=meeting["meeting_type"]
+    )
 
 
 if __name__ == "__main__":
